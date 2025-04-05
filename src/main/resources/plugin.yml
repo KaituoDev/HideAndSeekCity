@@ -1,4 +1,4 @@
-api-version: 1.21
+api-version: ${paper.version}
 name: HideAndSeekCity
 main: fun.kaituo.hideandseekcity.HideAndSeekCity
 version: ${project.version}
