@@ -99,9 +99,12 @@ public class HideAndSeekCity extends Game implements Listener {
                 new ItemStack(Material.DARK_PRISMARINE),
                 new ItemStack(Material.OAK_LEAVES)
     };
+    // TODO: switch to game inv setup
+    // TODO: add armor to seekers (iron helmet & boots)
+    // TODO: design better taunts (maybe 30-60s of cooldown?)
     public static final ItemStack tauntItem = new ItemStackBuilder(Material.GOLD_NUGGET).setDisplayName("§r§e嘲讽").setLore("§r§5效果: 自己所在位置发出声音以及粒子效果，寻找时间减3秒", "§r§5CD: 15秒").build();
     public static final ItemStack soundItem = new ItemStackBuilder(Material.AMETHYST_SHARD).setDisplayName("§r§c发声").setLore("§r§5效果: 所有躲藏者发出声音", "§r§5CD: 30秒").build();
-    public static final ItemStack seekerWeaponItem = new ItemStackBuilder(Material.DIAMOND_SWORD).setUnbreakable(true).build();
+    public static final ItemStack seekerWeaponItem = new ItemStackBuilder(Material.IRON_SWORD).setUnbreakable(true).build();
 
     private UUID gameUUID;
 

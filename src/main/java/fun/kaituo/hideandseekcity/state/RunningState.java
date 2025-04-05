@@ -78,6 +78,7 @@ public class RunningState implements GameState, Listener {
             mainObjective.getScore("准备躲藏时间").setScore(graceCountdown.get());
             graceCountdown.getAndDecrement();
         }, 0, 20L);
+        // TODO: deprive hiders of the ability to change blocks after 15s
         taskIds.add(graceCountdownTaskId);
         taskIds.add(Bukkit.getScheduler().runTaskLater(game, () -> {
             for (Player player: game.getPlayers()) {
@@ -109,6 +110,10 @@ public class RunningState implements GameState, Listener {
             catchTimeCountdown.getAndDecrement();
         }, 65 * 20L, 20L);
         taskIds.add(catchTimeCountdownTaskId);
+
+        // TODO: recruit another seeker if the seeker fails to find any hider within 1 min
+
+        // TODO: give every hider a wooden sword to fight back after 2 mins
     }
 
     @Override
@@ -306,6 +311,8 @@ public class RunningState implements GameState, Listener {
         if (game.getHiders().isEmpty() || catchTimeCountdown.get() == 0) {
             game.setState(IdleState.INST);
         }
+
+        // TODO: select another seeker if all seekers are missing
     }
 
     private double getDistance(Location l1, Location l2) {
@@ -403,6 +410,7 @@ public class RunningState implements GameState, Listener {
             // seeker attack logic (because hiders are, well, hidden!)
             Player seeker = event.getPlayer();
             if (!game.getSeekers().contains(seeker)) return;
+            // TODO: add stamina bar (20 hits), regen at 1 per second
             Location seekerEyeLoc = seeker.getEyeLocation();
             org.bukkit.util.Vector rayTraceStart = seekerEyeLoc.toVector();
             Vector rayTraceDirection = seekerEyeLoc.getDirection();
@@ -510,6 +518,8 @@ public class RunningState implements GameState, Listener {
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player p = event.getPlayer();
+        /* TODO: 5 sec cooldown after a seeker dies.
+            If he's the only seeker, recruit another one (if >= 2 hiders).*/
         if (!game.getHiders().contains(p)) return;
         BlockDisplay fakeBlockDisplay = getFakeBlockDisplay(p.getUniqueId());
         if (fakeBlockDisplay != null) {
