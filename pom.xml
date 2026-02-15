@@ -6,7 +6,7 @@
 
     <groupId>fun.kaituo.hideandseekcity</groupId>
     <artifactId>HideAndSeekCity</artifactId>
-    <version>2.1.1</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
 
     <name>HideAndSeekCity</name>
@@ -130,13 +130,13 @@
         <dependency>
             <groupId>fun.kaituo.gameutils</groupId>
             <artifactId>GameUtils</artifactId>
-            <version>2.0.0</version>
+            <version>2.0.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.comphenix.protocol</groupId>
-            <artifactId>ProtocolLib</artifactId>
-            <version>5.3.0</version>
+            <groupId>fun.kaituo.hideandseek</groupId>
+            <artifactId>HideAndSeek</artifactId>
+            <version>1.0.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

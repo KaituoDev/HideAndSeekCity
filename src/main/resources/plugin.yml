@@ -2,4 +2,4 @@ api-version: ${paper.version}
 name: HideAndSeekCity
 main: fun.kaituo.hideandseekcity.HideAndSeekCity
 version: ${project.version}
-depend: [GameUtils, ProtocolLib]
+depend: [ GameUtils, ProtocolLib, HideAndSeek ]
