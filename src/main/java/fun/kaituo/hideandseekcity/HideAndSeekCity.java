@@ -8,22 +8,26 @@ import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.Pair;
 import fun.kaituo.gameutils.GameUtils;
 import fun.kaituo.gameutils.game.Game;
-import fun.kaituo.gameutils.util.ItemStackBuilder;
-import fun.kaituo.hideandseekcity.state.RunningState;
 import fun.kaituo.hideandseekcity.state.IdleState;
+import fun.kaituo.hideandseekcity.state.RunningState;
 import fun.kaituo.hideandseekcity.util.GameCharacter;
 import fun.kaituo.hideandseekcity.util.HiderData;
 import fun.kaituo.hideandseekcity.util.RejoinData;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.JoinConfiguration;
 import org.bukkit.*;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scoreboard.*;
 
 import java.util.*;
+import java.util.function.Consumer;
+
+import static net.kyori.adventure.text.format.NamedTextColor.*;
 
 public class HideAndSeekCity extends Game implements Listener {
 
@@ -57,7 +61,7 @@ public class HideAndSeekCity extends Game implements Listener {
     private Scoreboard gameScoreboard;
     private Objective mainObjective;
     private Objective sneakTimeObjective;
-    private Objective killCountObjective;
+    private final HashMap<UUID, Integer> killCountMap = new HashMap<>();
     private Team hidersTeam;
     private Team seekersTeam;
 
@@ -70,7 +74,7 @@ public class HideAndSeekCity extends Game implements Listener {
     }
 
     public void clearMainObjective() {
-        for (String entry: gameScoreboard.getEntries()) {
+        for (String entry : gameScoreboard.getEntries()) {
             mainObjective.getScore(entry).resetScore();
         }
     }
@@ -79,8 +83,8 @@ public class HideAndSeekCity extends Game implements Listener {
         return sneakTimeObjective;
     }
 
-    public Objective getKillCountObjective() {
-        return killCountObjective;
+    public HashMap<UUID, Integer> getKillCountMap() {
+        return killCountMap;
     }
 
     public void clearTeams() {
@@ -92,19 +96,62 @@ public class HideAndSeekCity extends Game implements Listener {
         }
     }
 
-    public static final ItemStack[] disguiseBlockItems = new ItemStack[] {
-        new ItemStack(Material.SPRUCE_PLANKS),
-                new ItemStack(Material.ANVIL),
-                new ItemStack(Material.BEACON),
-                new ItemStack(Material.DARK_PRISMARINE),
-                new ItemStack(Material.OAK_LEAVES)
-    };
-    // TODO: switch to game inv setup
-    // TODO: add armor to seekers (iron helmet & boots)
-    // TODO: design better taunts (maybe 30-60s of cooldown?)
-    public static final ItemStack tauntItem = new ItemStackBuilder(Material.GOLD_NUGGET).setDisplayName("§r§e嘲讽").setLore("§r§5效果: 自己所在位置发出声音以及粒子效果，寻找时间减3秒", "§r§5CD: 15秒").build();
-    public static final ItemStack soundItem = new ItemStackBuilder(Material.AMETHYST_SHARD).setDisplayName("§r§c发声").setLore("§r§5效果: 所有躲藏者发出声音", "§r§5CD: 30秒").build();
-    public static final ItemStack seekerWeaponItem = new ItemStackBuilder(Material.IRON_SWORD).setUnbreakable(true).build();
+    public static final int TAUNT_REDUCE_SECONDS = 3;
+    public static final int TAUNT_COOLDOWN_SECONDS = 30;
+
+    public static final ItemStack tauntItem = createItem(Material.GOLD_NUGGET, m -> {
+        m.displayName(Component.text("嘲讽", YELLOW));
+        m.lore(
+                Arrays.asList(
+                        Component.join(
+                                JoinConfiguration.noSeparators(),
+                                Component.text("效果: 自己所在位置发出声音以及粒子效果，寻找时间减"),
+                                Component.text(TAUNT_REDUCE_SECONDS),
+                                Component.text("秒")
+                        ).color(DARK_PURPLE),
+                        Component.join(
+                                JoinConfiguration.noSeparators(),
+                                Component.text("CD: "),
+                                Component.text(TAUNT_COOLDOWN_SECONDS),
+                                Component.text("秒")
+                        ).color(DARK_PURPLE)
+                )
+        );
+    });
+
+    public static final int SOUND_COOLDOWN_SECONDS = 30;
+
+    public static final ItemStack soundItem = createItem(Material.AMETHYST_SHARD, m -> {
+        m.displayName(Component.text("发声", RED));
+        m.lore(
+                Arrays.asList(
+                        Component.text("效果: 所有躲藏者发出声音", DARK_PURPLE),
+                        Component.join(
+                                JoinConfiguration.noSeparators(),
+                                Component.text("CD: "),
+                                Component.text(SOUND_COOLDOWN_SECONDS),
+                                Component.text("秒")
+                        ).color(DARK_PURPLE)
+                )
+        );
+    });
+
+    public static final ItemStack revengeSwordItem = createItem(Material.WOODEN_SWORD, m -> {
+        ((Damageable) m).setDamage(49);
+        m.displayName(Component.text("复仇之剑", RED));
+        m.lore(
+                Arrays.asList(
+                        Component.text("向搜寻者复仇吧！", DARK_PURPLE),
+                        Component.text("提示：搜寻者死亡后会被牵制3秒", DARK_PURPLE)
+                )
+        );
+    });
+
+    private static ItemStack createItem(Material material, Consumer<ItemMeta> metaEditor) {
+        ItemStack itemStack = new ItemStack(material);
+        itemStack.editMeta(metaEditor);
+        return itemStack;
+    }
 
     private UUID gameUUID;
 
@@ -120,26 +167,55 @@ public class HideAndSeekCity extends Game implements Listener {
     private final Set<UUID> seekerIds = new HashSet<>();
     private final Set<UUID> hiderIds = new HashSet<>();
     private final HashMap<UUID, HiderData> hiderDataMap = new HashMap<>();
+    private final HashMap<UUID, Integer> seekerStaminaMap = new HashMap<>();
     private final HashMap<UUID, RejoinData> rejoinDataMap = new HashMap<>();
 
     public HashMap<UUID, HiderData> getHiderDataMap() {
         return hiderDataMap;
     }
 
+    public HashMap<UUID, Integer> getSeekerStaminaMap() {
+        return seekerStaminaMap;
+    }
+
+    public enum MainObjectiveDisplay {
+        IDLE,
+        PREPARE,
+        CATCH
+    }
+
+    public void setMainObjectiveDisplay(MainObjectiveDisplay display) {
+        switch (display) {
+            case IDLE:
+                mainObjective.getScore("hider_count").customName(Component.text("躲藏者数量", AQUA));
+                mainObjective.getScore("seeker_count").customName(Component.text("搜寻者数量", GRAY));
+                break;
+            case PREPARE:
+                mainObjective.getScore("prepare_time").customName(Component.text("准备躲藏时间"));
+                mainObjective.getScore("remaining_hiders").customName(Component.text("剩余躲藏者"));
+                break;
+            case CATCH:
+                mainObjective.getScore("remaining_time").customName(Component.text("剩余时间"));
+                mainObjective.getScore("remaining_hiders").customName(Component.text("剩余躲藏者"));
+                break;
+        }
+    }
+
     private void initScoreboard() {
         gameScoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-        mainObjective = gameScoreboard.registerNewObjective("game_main", Criteria.DUMMY, Component.text("方块捉迷藏", NamedTextColor.AQUA));
+        mainObjective = gameScoreboard.registerNewObjective("game_main", Criteria.DUMMY, Component.text("方块捉迷藏", AQUA));
         mainObjective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        sneakTimeObjective = gameScoreboard.registerNewObjective("sneak_time", Criteria.statistic(Statistic.SNEAK_TIME), Component.text("Sneak Time"));
-        killCountObjective = gameScoreboard.registerNewObjective("player_kills", Criteria.statistic(Statistic.PLAYER_KILLS), Component.text("Kills"));
+        sneakTimeObjective = gameScoreboard.registerNewObjective("sneak_time", Criteria.statistic(Statistic.SNEAK_TIME), Component.empty());
         hidersTeam = gameScoreboard.registerNewTeam("hiders");
-        hidersTeam.color(NamedTextColor.AQUA);
+        hidersTeam.color(AQUA);
+        hidersTeam.prefix(Component.text("[躲藏者] ", AQUA));
         hidersTeam.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
         hidersTeam.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
         hidersTeam.setCanSeeFriendlyInvisibles(false);
         hidersTeam.setAllowFriendlyFire(true);
         seekersTeam = gameScoreboard.registerNewTeam("seekers");
-        seekersTeam.color(NamedTextColor.DARK_GRAY);
+        seekersTeam.color(DARK_GRAY);
+        seekersTeam.prefix(Component.text("[搜寻者] ", DARK_GRAY));
         seekersTeam.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
         seekersTeam.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
         seekersTeam.setCanSeeFriendlyInvisibles(false);
@@ -203,13 +279,12 @@ public class HideAndSeekCity extends Game implements Listener {
 
     @Override
     public void onDisable() {
-        for (Player p: getPlayers()) {
+        for (Player p : getPlayers()) {
             removePlayer(p);
             GameUtils.inst().join(p, GameUtils.inst().getLobby());
         }
         this.state.exit();
         mainObjective.unregister();
-        killCountObjective.unregister();
         sneakTimeObjective.unregister();
         hidersTeam.unregister();
         seekersTeam.unregister();
@@ -248,6 +323,7 @@ public class HideAndSeekCity extends Game implements Listener {
         seekerIds.clear();
         hiderIds.clear();
         hiderDataMap.clear();
+        seekerStaminaMap.clear();
         rejoinDataMap.clear();
     }
 
@@ -268,8 +344,8 @@ public class HideAndSeekCity extends Game implements Listener {
             }
         }
         if (state == IdleState.INST) {
-            mainObjective.getScore("§b躲藏者数量").setScore(hiderIds.size());
-            mainObjective.getScore("§7搜寻者数量").setScore(seekerIds.size());
+            mainObjective.getScore("hider_count").setScore(hiderIds.size());
+            mainObjective.getScore("seeker_count").setScore(seekerIds.size());
         }
     }
 

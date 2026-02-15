@@ -10,6 +10,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Directional;
+import org.bukkit.block.data.Powerable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -28,7 +33,9 @@ import java.util.Set;
 public class IdleState implements GameState, Listener {
 
     public static IdleState INST = new IdleState();
-    private IdleState() {}
+
+    private IdleState() {
+    }
 
     private GameTimeSignListener gameTimeSignListener;
 
@@ -49,9 +56,15 @@ public class IdleState implements GameState, Listener {
         }
         Objective mainObjective = game.getMainObjective();
         game.clearMainObjective();
+        game.setMainObjectiveDisplay(HideAndSeekCity.MainObjectiveDisplay.IDLE);
         mainObjective.displayName(Component.text("当前角色数量"));
-        mainObjective.getScore("§b躲藏者数量").setScore(0);
-        mainObjective.getScore("§7搜寻者数量").setScore(0);
+        mainObjective.getScore("hider_count").setScore(game.getPlayers().size());
+        mainObjective.getScore("seeker_count").setScore(0);
+        Block startButton = Objects.requireNonNull(game.getLoc("startButton")).getBlock();
+        startButton.setType(Material.OAK_BUTTON);
+        Directional buttonData = (Directional) startButton.getBlockData();
+        buttonData.setFacing(BlockFace.EAST);
+        startButton.setBlockData(buttonData);
     }
 
     @Override
@@ -68,15 +81,18 @@ public class IdleState implements GameState, Listener {
     }
 
     @Override
-    public void tick() {}
+    public void tick() {
+    }
 
     @Override
     public void addPlayer(Player player) {
-        player.setRespawnLocation(game.getLoc("hub"));
+        player.setRespawnLocation(game.getLoc("hub"), true);
         player.getInventory().addItem(Misc.getMenu());
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, -1, 4, false, false));
         player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, -1, 0, false, false));
         player.teleport(game.getLocation());
+        player.setExp(0);
+        player.setLevel(0);
         game.selectCharacter(player, GameCharacter.HIDER);
     }
 
@@ -88,14 +104,17 @@ public class IdleState implements GameState, Listener {
     }
 
     @Override
-    public void forceStop() {}
+    public void forceStop() {
+    }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Location location = Objects.requireNonNull(event.getClickedBlock()).getLocation();
         if (LocationUtils.blockLocationEquals(location, Objects.requireNonNull(game.getLoc("startButton")))) {
-            for (Player player: game.getPlayers()) {
+            if (((Powerable) event.getClickedBlock().getBlockData()).isPowered())
+                return;
+            for (Player player : game.getPlayers()) {
                 if (!game.getSeekers().contains(player) && !game.getHiders().contains(player)) {
                     game.selectCharacter(player, GameCharacter.HIDER);
                 }
@@ -105,6 +124,7 @@ public class IdleState implements GameState, Listener {
                 player.sendMessage(Component.text("人数不足，无法开始游戏！", NamedTextColor.RED));
                 return;
             }
+
             // select a random player to be seeker
             Set<Player> players = game.getPlayers();
             int index = new Random().nextInt(players.size());
@@ -117,11 +137,11 @@ public class IdleState implements GameState, Listener {
                     p.sendMessage(Component.text(seeker.getName() + " 被选为搜寻者！", NamedTextColor.GREEN));
                 }
             }
-            for (Player player: game.getPlayers()) {
+            for (Player player : game.getPlayers()) {
                 taskIds.addAll(Misc.displayCountdown(player, 5, game));
             }
             taskIds.add(Bukkit.getScheduler().runTaskLater(game,
-                    () -> game.setState(RunningState.INST), 5 * 60L).getTaskId());
+                    () -> game.setState(RunningState.INST), 5 * 20L).getTaskId());
         }
     }
 }
